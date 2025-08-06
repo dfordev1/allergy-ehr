@@ -52,20 +52,20 @@ export const AuthForm = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center">
+      <Card className="w-full max-w-sm md:max-w-md">
+        <CardHeader className="space-y-1 pb-4">
+          <CardTitle className="text-xl md:text-2xl text-center">
             {isSignUp ? 'Create Account' : 'Sign In'}
           </CardTitle>
-          <CardDescription className="text-center">
+          <CardDescription className="text-center text-sm md:text-base">
             {isSignUp 
               ? 'Enter your details to create your account'
               : 'Enter your credentials to access your account'
             }
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <CardContent className="px-4 md:px-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input

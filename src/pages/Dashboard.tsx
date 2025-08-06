@@ -37,15 +37,31 @@ export const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-4 md:py-8">
         {showAddForm ? (
-          <AddPatientForm
-            onSuccess={handleAddSuccess}
-            onCancel={() => setShowAddForm(false)}
-          />
+          <div className="max-w-4xl mx-auto">
+            <AddPatientForm
+              onSuccess={handleAddSuccess}
+              onCancel={() => setShowAddForm(false)}
+            />
+          </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-5">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
+            {/* Mobile: Scrollable tabs */}
+            <div className="md:hidden">
+              <TabsList className="grid grid-cols-2 w-full mb-2">
+                <TabsTrigger value="patients" className="text-xs">Patients</TabsTrigger>
+                <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
+              </TabsList>
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="advanced" className="text-xs">Search</TabsTrigger>
+                <TabsTrigger value="compliance" className="text-xs">Compliance</TabsTrigger>
+                <TabsTrigger value="debug" className="text-xs">Debug</TabsTrigger>
+              </TabsList>
+            </div>
+            
+            {/* Desktop: Single row tabs */}
+            <TabsList className="hidden md:grid w-full grid-cols-5">
               <TabsTrigger value="patients">Patient Records</TabsTrigger>
               <TabsTrigger value="overview">Clinic Overview</TabsTrigger>
               <TabsTrigger value="advanced">Advanced Search</TabsTrigger>

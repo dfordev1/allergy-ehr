@@ -21,7 +21,7 @@ const enhancedTestSchema = z.object({
     age_sex: z.string().optional(),
     provisional_diagnosis: z.string().optional(),
     mrd: z.string().optional(),
-    date_of_testing: z.string().min(1, 'Test date is required'),
+    test_date: z.string().min(1, 'Test date is required'),
     referred_by: z.string().optional(),
   }),
   allergens: z.array(z.object({
@@ -133,7 +133,7 @@ export const EnhancedAllergyTestForm = ({
         age_sex: '',
         provisional_diagnosis: '',
         mrd: '',
-        date_of_testing: new Date().toISOString().split('T')[0],
+        test_date: new Date().toISOString().split('T')[0],
         referred_by: '',
       },
       allergens: PREDEFINED_ALLERGENS,
@@ -172,7 +172,7 @@ export const EnhancedAllergyTestForm = ({
       age_sex: document.querySelector<HTMLInputElement>('input[name="patient_info.age_sex"]')?.value || '',
       provisional_diagnosis: document.querySelector<HTMLInputElement>('input[name="patient_info.provisional_diagnosis"]')?.value || '',
       mrd: document.querySelector<HTMLInputElement>('input[name="patient_info.mrd"]')?.value || '',
-      date_of_testing: document.querySelector<HTMLInputElement>('input[name="patient_info.date_of_testing"]')?.value || '',
+              test_date: document.querySelector<HTMLInputElement>('input[name="patient_info.test_date"]')?.value || '',
       referred_by: document.querySelector<HTMLInputElement>('input[name="patient_info.referred_by"]')?.value || '',
     };
 
@@ -239,7 +239,7 @@ export const EnhancedAllergyTestForm = ({
         <table>
             <tr><td><strong>Name:</strong></td><td>${patientInfo.name}</td><td><strong>Lab No:</strong></td><td>${patientInfo.lab_no}</td></tr>
             <tr><td><strong>Age/Sex:</strong></td><td>${patientInfo.age_sex}</td><td><strong>MRD:</strong></td><td>${patientInfo.mrd}</td></tr>
-            <tr><td><strong>Date of Testing:</strong></td><td>${patientInfo.date_of_testing}</td><td><strong>Referred By:</strong></td><td>${patientInfo.referred_by}</td></tr>
+            <tr><td><strong>Date of Testing:</strong></td><td>${patientInfo.test_date}</td><td><strong>Referred By:</strong></td><td>${patientInfo.referred_by}</td></tr>
             <tr><td colspan="4"><strong>Provisional Diagnosis:</strong> ${patientInfo.provisional_diagnosis}</td></tr>
         </table>
     </div>
@@ -287,45 +287,43 @@ export const EnhancedAllergyTestForm = ({
   const onSubmit = async (data: EnhancedTestFormData) => {
     setLoading(true);
     try {
-             // Process allergens with results
-       const processedAllergens = PREDEFINED_ALLERGENS.map(allergen => {
-         const result = allergenResults[allergen.sno] || { wheal_size_mm: '', test_result: '' };
-         const whealSize = parseFloat(result.wheal_size_mm || '0');
-         
-         let testResult = result.test_result;
-         if ((!testResult || testResult === 'none') && result.wheal_size_mm) {
-           if (whealSize >= 3) {
-             testResult = 'positive';
-           } else if (whealSize > 0) {
-             testResult = 'equivocal';
-           } else {
-             testResult = 'negative';
-           }
-         }
+                   // Process allergens with results - convert to object format for database
+      const allergenResultsObject: {[key: string]: string} = {};
+      
+      PREDEFINED_ALLERGENS.forEach(allergen => {
+        const result = allergenResults[allergen.sno] || { wheal_size_mm: '', test_result: '' };
+        
+        // Only include allergens that have results
+        if (result.wheal_size_mm || result.test_result) {
+          const whealSize = result.wheal_size_mm || '0';
+          const testResult = result.test_result && result.test_result !== 'none' ? result.test_result : '';
+          
+          // Use wheal size in mm as the value (matching existing data format like "3mm", "5mm")
+          if (whealSize && whealSize !== '0') {
+            allergenResultsObject[allergen.name.toLowerCase().replace(/\s+/g, '_')] = `${whealSize}mm`;
+          }
+        }
+      });
 
-         return {
-           ...allergen,
-           wheal_size_mm: result.wheal_size_mm,
-           test_result: (testResult && testResult !== 'none') ? testResult : '',
-         };
-       });
-
-      const testData = {
-        ...data,
-        allergens: processedAllergens,
-      };
-
-             // For now, save to the existing test_sessions table since enhanced_allergy_tests may not exist yet
-       const { error } = await supabase
-        .from('test_sessions')
+            // Insert the test data with correct allergen_results format
+      const { error } = await supabase
+        .from('enhanced_allergy_tests')
         .insert({
-          patientid: patientId,
-          testdate: data.patient_info.date_of_testing,
-          technician: data.technician || 'Unknown',
-          notes: data.notes || '',
-          results: processedAllergens,
+          patient_id: patientId,
+          test_date: data.patient_info.test_date,
+          patient_info: {
+            name: data.patient_info.name,
+            lab_no: data.patient_info.lab_no,
+            age_sex: data.patient_info.age_sex,
+            provisional_diagnosis: data.patient_info.provisional_diagnosis,
+            mrd: data.patient_info.mrd,
+            referred_by: data.patient_info.referred_by
+          },
+          allergen_results: allergenResultsObject,
           controls: data.controls,
-          status: 'completed',
+          interpretation: data.notes || '',
+          recommendations: '',
+          is_completed: true
         });
 
        /* 
@@ -339,7 +337,7 @@ export const EnhancedAllergyTestForm = ({
           age_sex: data.patient_info.age_sex,
           provisional_diagnosis: data.patient_info.provisional_diagnosis,
           mrd: data.patient_info.mrd,
-          date_of_testing: data.patient_info.date_of_testing,
+          test_date: data.patient_info.test_date,
           referred_by: data.patient_info.referred_by,
           test_results: processedAllergens,
           controls: data.controls,
@@ -435,15 +433,15 @@ export const EnhancedAllergyTestForm = ({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="date_of_testing">Date of Testing</Label>
-                <Input
-                  id="date_of_testing"
-                  type="date"
-                  {...register('patient_info.date_of_testing')}
-                />
-                {errors.patient_info?.date_of_testing && (
-                  <p className="text-sm text-destructive">{errors.patient_info.date_of_testing.message}</p>
-                )}
+                            <Label htmlFor="test_date">Date of Testing</Label>
+            <Input
+              id="test_date"
+              type="date"
+              {...register('patient_info.test_date')}
+            />
+            {errors.patient_info?.test_date && (
+              <p className="text-sm text-destructive">{errors.patient_info.test_date.message}</p>
+            )}
               </div>
 
               <div className="space-y-2">

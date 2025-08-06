@@ -15,12 +15,16 @@ interface AllergenResult {
 
 interface TestResult {
   id: string;
-  testdate: string;
-  technician: string;
-  status: string;
-  results: any;
+  test_date: string;
+  patient_info: any;
+  allergen_results: any;
   controls: any;
-  notes: string;
+  interpretation: string;
+  recommendations: string;
+  is_completed: boolean;
+  is_reviewed: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface AllergyTestTableProps {
@@ -40,10 +44,10 @@ export const AllergyTestTable = ({ patientId, onAddTest }: AllergyTestTableProps
   const fetchTestResults = async () => {
     try {
       const { data, error } = await supabase
-        .from('test_sessions')
+        .from('enhanced_allergy_tests')
         .select('*')
-        .eq('patientid', patientId)
-        .order('testdate', { ascending: false });
+        .eq('patient_id', patientId)
+        .order('test_date', { ascending: false });
 
       if (error) {
         toast.error('Error fetching test results');
@@ -115,24 +119,31 @@ export const AllergyTestTable = ({ patientId, onAddTest }: AllergyTestTableProps
               </TableHeader>
               <TableBody>
               {testResults.map((test) => {
-                const results = Array.isArray(test.results) ? test.results : [];
-                const positiveCount = results.filter((r: AllergenResult) => r.is_positive).length;
+                const allergenResults = test.allergen_results || {};
+                const resultEntries = Object.entries(allergenResults);
+                const positiveCount = resultEntries.filter(([_, value]) => {
+                  // Consider positive if wheal size is >= 3mm (common threshold)
+                  const size = parseFloat(String(value).replace('mm', ''));
+                  return !isNaN(size) && size >= 3;
+                }).length;
                   
                   return (
                     <TableRow key={test.id}>
                       <TableCell>
-                        {new Date(test.testdate).toLocaleDateString()}
+                        {new Date(test.test_date).toLocaleDateString()}
                       </TableCell>
-                      <TableCell>{test.technician}</TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(test.status)}>
-                          {test.status}
+                        {test.patient_info?.referred_by || 'Unknown'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getStatusColor(test.is_completed ? 'completed' : 'pending')}>
+                          {test.is_completed ? 'Completed' : 'Pending'}
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <span className="text-red-600 font-medium">{positiveCount}</span>
                       </TableCell>
-                      <TableCell>{results.length}</TableCell>
+                      <TableCell>{resultEntries.length}</TableCell>
                       <TableCell>
                         <Button
                           variant="outline"
@@ -172,27 +183,34 @@ export const AllergyTestTable = ({ patientId, onAddTest }: AllergyTestTableProps
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Technician: </span>
-                  <span className="font-medium">{selectedTest.technician}</span>
+                  <span className="text-muted-foreground">Referred By: </span>
+                  <span className="font-medium">{selectedTest.patient_info?.referred_by || 'Unknown'}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Status: </span>
-                  <Badge className={getStatusColor(selectedTest.status)}>
-                    {selectedTest.status}
+                  <Badge className={getStatusColor(selectedTest.is_completed ? 'completed' : 'pending')}>
+                    {selectedTest.is_completed ? 'Completed' : 'Pending'}
                   </Badge>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Date: </span>
                   <span className="font-medium">
-                    {new Date(selectedTest.testdate).toLocaleDateString()}
+                    {new Date(selectedTest.test_date).toLocaleDateString()}
                   </span>
                 </div>
               </div>
 
-              {selectedTest.notes && (
+              {selectedTest.interpretation && (
                 <div>
-                  <h4 className="font-medium mb-2">Notes:</h4>
-                  <p className="text-sm text-muted-foreground">{selectedTest.notes}</p>
+                  <h4 className="font-medium mb-2">Interpretation:</h4>
+                  <p className="text-sm text-muted-foreground">{selectedTest.interpretation}</p>
+                </div>
+              )}
+
+              {selectedTest.recommendations && (
+                <div>
+                  <h4 className="font-medium mb-2">Recommendations:</h4>
+                  <p className="text-sm text-muted-foreground">{selectedTest.recommendations}</p>
                 </div>
               )}
 
@@ -207,40 +225,45 @@ export const AllergyTestTable = ({ patientId, onAddTest }: AllergyTestTableProps
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {Array.isArray(selectedTest.results) && selectedTest.results.map((result: AllergenResult, index: number) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{result.allergen}</TableCell>
-                        <TableCell>{result.wheal_size}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            {result.is_positive ? (
-                              <>
-                                <CheckCircle className="h-4 w-4 text-red-600" />
-                                <span className="text-red-600 font-medium">Positive</span>
-                              </>
-                            ) : (
-                              <>
-                                <XCircle className="h-4 w-4 text-green-600" />
-                                <span className="text-green-600">Negative</span>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {Object.entries(selectedTest.allergen_results || {}).map(([allergen, whealSize], index) => {
+                      const size = parseFloat(String(whealSize).replace('mm', ''));
+                      const isPositive = !isNaN(size) && size >= 3;
+                      
+                      return (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{allergen.replace(/_/g, ' ')}</TableCell>
+                          <TableCell>{whealSize}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              {isPositive ? (
+                                <>
+                                  <CheckCircle className="h-4 w-4 text-red-600" />
+                                  <span className="text-red-600 font-medium">Positive</span>
+                                </>
+                              ) : (
+                                <>
+                                  <XCircle className="h-4 w-4 text-green-600" />
+                                  <span className="text-green-600">Negative</span>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
 
-              {Array.isArray(selectedTest.controls) && selectedTest.controls.length > 0 && (
+              {selectedTest.controls && Object.keys(selectedTest.controls).length > 0 && (
                 <div>
                   <h4 className="font-medium mb-3">Controls:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedTest.controls.map((control: any, index: number) => (
+                    {Object.entries(selectedTest.controls).map(([controlType, value], index) => (
                       <div key={index} className="p-3 border rounded">
                         <div className="flex justify-between items-center">
-                          <span className="font-medium capitalize">{control.type} Control</span>
-                          <span>{control.wheal_size}mm</span>
+                          <span className="font-medium capitalize">{controlType.replace(/_/g, ' ')}</span>
+                          <span>{value}</span>
                         </div>
                       </div>
                     ))}

@@ -42,7 +42,7 @@ const enhancedPatientSchema = z.object({
   
   // Contact Information
   email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  phone: z.string().regex(/^[\+]?[1-9][\d]{0,15}$/, 'Invalid phone number').optional().or(z.literal('')),
+  phone: z.string().regex(/^[+]?[1-9][\d]{0,15}$/, 'Invalid phone number').optional().or(z.literal('')),
   emergencyContact: z.object({
     name: z.string().optional(),
     relationship: z.string().optional(),

@@ -22,13 +22,13 @@ import { Save, X, Edit, Lock } from 'lucide-react';
 type Patient = Database['public']['Tables']['patients']['Row'];
 
 const patientSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(2, 'Name must be at least 2 characters'),
   age: z.coerce.number().min(1, 'Age must be at least 1').max(120, 'Age must be less than 120'),
   sex: z.string().min(1, 'Sex is required'),
-  labno: z.string().min(1, 'Lab number is required'),
+  labno: z.string().min(3, 'Lab number must be at least 3 characters'),
   dateoftesting: z.string().min(1, 'Date of testing is required'),
-  provisionaldiagnosis: z.string().min(1, 'Provisional diagnosis is required'),
-  referringphysician: z.string().min(1, 'Referring physician is required'),
+  provisionaldiagnosis: z.string().min(3, 'Provisional diagnosis must be at least 3 characters'),
+  referringphysician: z.string().min(2, 'Referring physician must be at least 2 characters'),
   contactinfo: z.string().optional(),
 });
 

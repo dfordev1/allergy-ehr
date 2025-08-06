@@ -6,18 +6,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { patientApi } from '@/services/api';
 import { useState } from 'react';
+import { toast } from 'sonner';
 
 const patientSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(2, 'Name must be at least 2 characters'),
   age: z.number().min(0, 'Age must be positive').max(150, 'Age must be realistic'),
   sex: z.enum(['Male', 'Female', 'Other']),
-  labno: z.string().min(1, 'Lab number is required'),
+  labno: z.string().min(3, 'Lab number must be at least 3 characters'),
   dateoftesting: z.string().min(1, 'Date of testing is required'),
-  provisionaldiagnosis: z.string().min(1, 'Provisional diagnosis is required'),
-  referringphysician: z.string().min(1, 'Referring physician is required'),
+  provisionaldiagnosis: z.string().min(3, 'Provisional diagnosis must be at least 3 characters'),
+  referringphysician: z.string().min(2, 'Referring physician must be at least 2 characters'),
 });
 
 type PatientFormData = z.infer<typeof patientSchema>;
@@ -44,24 +44,22 @@ export const AddPatientForm = ({ onSuccess, onCancel }: AddPatientFormProps) => 
     setLoading(true);
     try {
       console.log('Adding patient:', data);
-      const { error } = await supabase
-        .from('patients')
-        .insert([
-          {
-            name: data.name,
-            age: data.age,
-            sex: data.sex,
-            labno: data.labno,
-            dateoftesting: data.dateoftesting,
-            provisionaldiagnosis: data.provisionaldiagnosis,
-            referringphysician: data.referringphysician,
-            contactinfo: {},
-          },
-        ]);
+      
+      // Use the API service instead of direct Supabase call
+      const result = await patientApi.create({
+        name: data.name,
+        age: data.age,
+        sex: data.sex,
+        labno: data.labno,
+        dateoftesting: data.dateoftesting || new Date().toISOString().split('T')[0],
+        provisionaldiagnosis: data.provisionaldiagnosis,
+        referringphysician: data.referringphysician,
+        contactinfo: {}
+      });
 
-      if (error) {
-        console.error('Supabase error:', error);
-        toast.error(`Error adding patient: ${error.message}`);
+      if (!result.success) {
+        console.error('API error:', result.error);
+        toast.error(`Error adding patient: ${result.error?.message || 'Unknown error'}`);
         return;
       }
 
@@ -78,12 +76,12 @@ export const AddPatientForm = ({ onSuccess, onCancel }: AddPatientFormProps) => 
   };
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Add New Patient</CardTitle>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg md:text-xl">Add New Patient</CardTitle>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <CardContent className="px-4 md:px-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
@@ -176,11 +174,11 @@ export const AddPatientForm = ({ onSuccess, onCancel }: AddPatientFormProps) => 
             )}
           </div>
 
-          <div className="flex space-x-4 pt-4">
-            <Button type="submit" disabled={loading} className="flex-1">
+          <div className="flex flex-col md:flex-row space-y-2 md:space-y-0 md:space-x-4 pt-4">
+            <Button type="submit" disabled={loading} className="w-full md:flex-1">
               {loading ? 'Adding...' : 'Add Patient'}
             </Button>
-            <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+            <Button type="button" variant="outline" onClick={onCancel} className="w-full md:flex-1">
               Cancel
             </Button>
           </div>

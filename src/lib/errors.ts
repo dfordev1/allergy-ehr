@@ -195,7 +195,7 @@ export class ErrorHandler {
   }
 
   // Handle Supabase specific errors
-  public handleSupabaseError(error: any, context?: string): AppError {
+  public handleSupabaseError(error: unknown, context?: string): AppError {
     let code = ErrorCode.DATABASE_CONNECTION;
     let severity = ErrorSeverity.HIGH;
     let message = 'Database operation failed';
@@ -244,7 +244,7 @@ export class ErrorHandler {
   }
 
   // Handle network errors
-  public handleNetworkError(error: any, context?: string): AppError {
+  public handleNetworkError(error: unknown, context?: string): AppError {
     const appError: AppError = {
       code: ErrorCode.NETWORK_ERROR,
       message: 'Network connection failed',
@@ -420,16 +420,16 @@ export const handleError = (error: unknown, context?: string): AppError => {
   return errorHandler.handleError(error, context);
 };
 
-export const handleSupabaseError = (error: any, context?: string): AppError => {
+export const handleSupabaseError = (error: unknown, context?: string): AppError => {
   return errorHandler.handleSupabaseError(error, context);
 };
 
-export const handleNetworkError = (error: any, context?: string): AppError => {
+export const handleNetworkError = (error: unknown, context?: string): AppError => {
   return errorHandler.handleNetworkError(error, context);
 };
 
 // Validation helpers
-export const validateRequired = (value: any, fieldName: string): void => {
+export const validateRequired = (value: unknown, fieldName: string): void => {
   if (!value || (typeof value === 'string' && value.trim() === '')) {
     throw new ValidationError(`${fieldName} is required`);
   }
@@ -455,7 +455,7 @@ export const validateLabNumber = (labNo: string): void => {
 };
 
 // Medical data validation
-export const validateMedicalData = (data: any): void => {
+export const validateMedicalData = (data: unknown): void => {
   if (!data || typeof data !== 'object') {
     throw new MedicalDataError('Invalid medical data format');
   }

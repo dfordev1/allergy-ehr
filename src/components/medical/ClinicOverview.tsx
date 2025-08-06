@@ -54,7 +54,7 @@ export const ClinicOverview: React.FC = () => {
       const { count: todayBookings } = await supabase
         .from('bookings')
         .select('*', { count: 'exact', head: true })
-        .eq('booking_date', today);
+        .eq('appointment_date', today);
 
       // Fetch test sessions
       const { data: tests } = await supabase

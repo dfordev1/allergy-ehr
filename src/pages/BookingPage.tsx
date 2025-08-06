@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { bookingApi } from '@/services/api';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,14 +11,22 @@ import { AddBookingForm } from '@/components/bookings/AddBookingForm';
 
 interface Booking {
   id: string;
-  patient_name: string;
   patient_id: string;
-  booking_date: string;
-  booking_time: string;
+  appointment_date: string;
+  appointment_time: string;
   test_type: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   notes?: string;
+  duration_minutes: number;
+  assigned_technician?: string;
+  assigned_doctor?: string;
+  created_by?: string;
   created_at: string;
+  updated_at: string;
+  patient?: {
+    name: string;
+    labno: string;
+  };
 }
 
 export const BookingPage = () => {
@@ -33,21 +41,18 @@ export const BookingPage = () => {
 
   const fetchBookings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('booking_date', { ascending: true });
+      const result = await bookingApi.getAll();
 
-      if (error) {
-        console.error('Supabase error:', error);
-        toast.error('Error fetching bookings: ' + error.message);
+      if (!result.success) {
+        console.error('API error:', result.error);
+        toast.error('Error fetching bookings: ' + (result.error?.message || 'Unknown error'));
         return;
       }
 
-      setBookings(data || []);
+      setBookings(result.data || []);
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Error fetching bookings');
+      toast.error('Error fetching bookings: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -59,7 +64,7 @@ export const BookingPage = () => {
   };
 
   const filteredBookings = bookings.filter(booking =>
-    booking.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (booking.patient?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     booking.test_type.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -80,8 +85,8 @@ export const BookingPage = () => {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader />
-        <div className="flex items-center justify-center h-64">
-          <div className="text-lg">Loading bookings...</div>
+        <div className="flex items-center justify-center h-32 md:h-64">
+          <div className="text-base md:text-lg">Loading bookings...</div>
         </div>
       </div>
     );
@@ -123,7 +128,7 @@ export const BookingPage = () => {
                     <div className="flex items-center justify-between">
                       <CardTitle className="flex items-center space-x-2">
                         <User className="h-5 w-5" />
-                        <span>{booking.patient_name}</span>
+                        <span>{booking.patient?.name || 'Unknown Patient'}</span>
                       </CardTitle>
                       <Badge className={getStatusColor(booking.status)}>
                         {booking.status.toUpperCase()}
@@ -134,11 +139,11 @@ export const BookingPage = () => {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{new Date(booking.booking_date).toLocaleDateString()}</span>
+                        <span>{new Date(booking.appointment_date).toLocaleDateString()}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span>{booking.booking_time}</span>
+                        <span>{booking.appointment_time}</span>
                       </div>
                       <div>
                         <span className="text-muted-foreground">Test Type: </span>

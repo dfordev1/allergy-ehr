@@ -107,36 +107,45 @@ export type Database = {
         Row: {
           id: string
           patient_id: string
-          patient_name: string
-          booking_date: string
-          booking_time: string
+          appointment_date: string
+          appointment_time: string
           test_type: string
           status: string
           notes: string | null
+          duration_minutes: number
+          assigned_technician: string | null
+          assigned_doctor: string | null
+          created_by: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           patient_id: string
-          patient_name: string
-          booking_date: string
-          booking_time: string
+          appointment_date: string
+          appointment_time: string
           test_type: string
           status?: string
           notes?: string | null
+          duration_minutes?: number
+          assigned_technician?: string | null
+          assigned_doctor?: string | null
+          created_by?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           patient_id?: string
-          patient_name?: string
-          booking_date?: string
-          booking_time?: string
+          appointment_date?: string
+          appointment_time?: string
           test_type?: string
           status?: string
           notes?: string | null
+          duration_minutes?: number
+          assigned_technician?: string | null
+          assigned_doctor?: string | null
+          created_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -154,54 +163,54 @@ export type Database = {
         Row: {
           id: string
           patient_id: string
-          patient_name: string
-          lab_no: string
-          age_sex: string | null
-          provisional_diagnosis: string | null
-          mrd: string | null
-          date_of_testing: string
-          referred_by: string | null
-          test_results: Json
+          test_date: string
+          patient_info: Json
+          allergen_results: Json
           controls: Json
-          technician: string | null
-          test_status: string
-          notes: string | null
+          interpretation: string | null
+          recommendations: string | null
+          technician_id: string | null
+          doctor_id: string | null
+          is_completed: boolean
+          is_reviewed: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           patient_id: string
-          patient_name: string
-          lab_no: string
-          age_sex?: string | null
-          provisional_diagnosis?: string | null
-          mrd?: string | null
-          date_of_testing: string
-          referred_by?: string | null
-          test_results: Json
-          controls: Json
-          technician?: string | null
-          test_status?: string
-          notes?: string | null
+          test_date?: string
+          patient_info: Json
+          allergen_results?: Json
+          controls?: Json
+          interpretation?: string | null
+          recommendations?: string | null
+          technician_id?: string | null
+          doctor_id?: string | null
+          is_completed?: boolean
+          is_reviewed?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           patient_id?: string
-          patient_name?: string
-          lab_no?: string
-          age_sex?: string | null
-          provisional_diagnosis?: string | null
-          mrd?: string | null
-          date_of_testing?: string
-          referred_by?: string | null
-          test_results?: Json
+          test_date?: string
+          patient_info?: Json
+          allergen_results?: Json
           controls?: Json
-          technician?: string | null
-          test_status?: string
-          notes?: string | null
+          interpretation?: string | null
+          recommendations?: string | null
+          technician_id?: string | null
+          doctor_id?: string | null
+          is_completed?: boolean
+          is_reviewed?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           created_at?: string
           updated_at?: string
         }

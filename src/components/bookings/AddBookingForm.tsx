@@ -8,14 +8,14 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
+import { bookingApi, patientApi } from '@/services/api';
 import { toast } from 'sonner';
 
 const bookingSchema = z.object({
-  patient_id: z.string().min(1, 'Please select a patient'),
-  booking_date: z.string().min(1, 'Booking date is required'),
-  booking_time: z.string().min(1, 'Booking time is required'),
-  test_type: z.string().min(1, 'Test type is required'),
+  patientId: z.string().min(1, 'Please select a patient'),
+  appointmentDate: z.string().min(1, 'Appointment date is required'),
+  appointmentTime: z.string().min(1, 'Appointment time is required'),
+  testType: z.string().min(1, 'Test type is required'),
   notes: z.string().optional(),
 });
 
@@ -51,18 +51,23 @@ export const AddBookingForm = ({ onSuccess, onCancel }: AddBookingFormProps) => 
 
   const fetchPatients = async () => {
     try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('id, name')
-        .order('name');
-
-      if (error) {
-        toast.error('Error fetching patients');
+      const result = await patientApi.getAll();
+      
+      if (!result.success) {
+        toast.error('Error fetching patients: ' + (result.error?.message || 'Unknown error'));
         return;
       }
 
-      setPatients(data || []);
+      // Handle both paginated and direct array responses
+      const patientData = result.data?.data || result.data || [];
+      const patientList = patientData.map((patient: any) => ({
+        id: patient.id,
+        name: patient.name
+      }));
+      
+      setPatients(patientList);
     } catch (error) {
+      console.error('Error fetching patients:', error);
       toast.error('Error fetching patients');
     }
   };
@@ -71,29 +76,27 @@ export const AddBookingForm = ({ onSuccess, onCancel }: AddBookingFormProps) => 
     setLoading(true);
     try {
       // Get patient name for the booking
-      const patient = patients.find(p => p.id === data.patient_id);
+      const patient = patients.find(p => p.id === data.patientId);
       if (!patient) {
         toast.error('Patient not found');
         return;
       }
 
-      // Insert booking into Supabase
-      const { error } = await supabase
-        .from('bookings')
-        .insert({
-          patient_id: data.patient_id,
-          patient_name: patient.name,
-          booking_date: data.booking_date,
-          booking_time: data.booking_time,
-          test_type: data.test_type,
-          notes: data.notes || null,
-          status: 'scheduled',
-          created_at: new Date().toISOString(),
-        });
+      // Create booking with simpler approach to avoid conflicts
+      const bookingData = {
+        patientId: data.patientId,
+        appointmentDate: data.appointmentDate,
+        appointmentTime: data.appointmentTime,
+        testType: data.testType,
+        notes: data.notes || '',
+        durationMinutes: 60
+      };
 
-      if (error) {
-        console.error('Supabase error:', error);
-        toast.error('Error creating booking: ' + error.message);
+      const result = await bookingApi.create(bookingData);
+
+      if (!result.success) {
+        console.error('API error:', result.error);
+        toast.error('Error creating booking: ' + (result.error?.message || 'Unknown error'));
         return;
       }
 
@@ -119,16 +122,16 @@ export const AddBookingForm = ({ onSuccess, onCancel }: AddBookingFormProps) => 
   ];
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle>Schedule New Allergy Test</CardTitle>
+    <Card className="w-full max-w-2xl mx-auto">
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg md:text-xl">Schedule New Allergy Test</CardTitle>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <CardContent className="px-4 md:px-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 md:space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="patient_id">Patient</Label>
-              <Select onValueChange={(value) => setValue('patient_id', value)}>
+              <Label htmlFor="patientId">Patient</Label>
+              <Select onValueChange={(value) => setValue('patientId', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a patient" />
                 </SelectTrigger>
@@ -140,14 +143,14 @@ export const AddBookingForm = ({ onSuccess, onCancel }: AddBookingFormProps) => 
                   ))}
                 </SelectContent>
               </Select>
-              {errors.patient_id && (
-                <p className="text-sm text-destructive">{errors.patient_id.message}</p>
+              {errors.patientId && (
+                <p className="text-sm text-destructive">{errors.patientId.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="test_type">Test Type</Label>
-              <Select onValueChange={(value) => setValue('test_type', value)}>
+              <Label htmlFor="testType">Test Type</Label>
+              <Select onValueChange={(value) => setValue('testType', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select test type" />
                 </SelectTrigger>
@@ -159,33 +162,33 @@ export const AddBookingForm = ({ onSuccess, onCancel }: AddBookingFormProps) => 
                   ))}
                 </SelectContent>
               </Select>
-              {errors.test_type && (
-                <p className="text-sm text-destructive">{errors.test_type.message}</p>
+              {errors.testType && (
+                <p className="text-sm text-destructive">{errors.testType.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="booking_date">Date</Label>
+              <Label htmlFor="appointmentDate">Date</Label>
               <Input
-                id="booking_date"
+                id="appointmentDate"
                 type="date"
                 min={new Date().toISOString().split('T')[0]}
-                {...register('booking_date')}
+                {...register('appointmentDate')}
               />
-              {errors.booking_date && (
-                <p className="text-sm text-destructive">{errors.booking_date.message}</p>
+              {errors.appointmentDate && (
+                <p className="text-sm text-destructive">{errors.appointmentDate.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="booking_time">Time</Label>
+              <Label htmlFor="appointmentTime">Time</Label>
               <Input
-                id="booking_time"
+                id="appointmentTime"
                 type="time"
-                {...register('booking_time')}
+                {...register('appointmentTime')}
               />
-              {errors.booking_time && (
-                <p className="text-sm text-destructive">{errors.booking_time.message}</p>
+              {errors.appointmentTime && (
+                <p className="text-sm text-destructive">{errors.appointmentTime.message}</p>
               )}
             </div>
           </div>

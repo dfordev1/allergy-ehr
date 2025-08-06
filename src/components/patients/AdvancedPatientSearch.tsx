@@ -19,7 +19,7 @@ import {
   TestTube,
   AlertTriangle
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { patientApi } from '@/services/api';
 import { toast } from 'sonner';
 
 interface Patient {
@@ -81,19 +81,18 @@ export const AdvancedPatientSearch = ({ onPatientSelect, onBulkAction }: Advance
 
   const fetchPatients = async () => {
     try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .order('createdat', { ascending: false });
+      const result = await patientApi.getAll();
 
-      if (error) {
-        toast.error('Error fetching patients');
+      if (!result.success) {
+        console.error('API error:', result.error);
+        toast.error('Error fetching patients: ' + (result.error?.message || 'Unknown error'));
         return;
       }
 
-      setPatients(data || []);
+      setPatients(result.data || []);
     } catch (error) {
-      toast.error('Error fetching patients');
+      console.error('Unexpected error:', error);
+      toast.error('Error fetching patients: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
