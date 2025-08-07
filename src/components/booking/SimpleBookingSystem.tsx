@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Clock, User, Plus, Trash2, Edit, Search, Filter, Phone, Mail, MapPin, Activity, CheckCircle, XCircle, AlertCircle, Download, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
+
 interface Booking {
   id: string;
   patient_name: string;
@@ -22,7 +23,6 @@ interface Booking {
   status: string;
   priority: string;
   notes?: string;
-  duration_minutes: number;
   created_at: string;
   updated_at?: string;
 }
@@ -35,7 +35,6 @@ interface NewBooking {
   appointment_time: string;
   test_type: string;
   priority: string;
-  duration_minutes: number;
   notes?: string;
 }
 
@@ -57,18 +56,17 @@ export const SimpleBookingSystem = () => {
     appointment_time: '',
     test_type: '',
     priority: 'normal',
-    duration_minutes: 60,
     notes: ''
   });
 
   const testTypes = [
-    { value: 'Skin Prick Test', duration: 30, description: 'Quick allergy skin testing' },
-    { value: 'Patch Test', duration: 45, description: 'Delayed reaction testing' },
-    { value: 'Food Allergy Test', duration: 60, description: 'Comprehensive food allergy panel' },
-    { value: 'Environmental Allergy Test', duration: 45, description: 'Environmental allergen testing' },
-    { value: 'Drug Allergy Test', duration: 90, description: 'Medication allergy assessment' },
-    { value: 'Insect Venom Test', duration: 60, description: 'Insect sting allergy testing' },
-    { value: 'Comprehensive Panel', duration: 120, description: 'Full allergy assessment' }
+    { value: 'Skin Prick Test', description: 'Quick allergy skin testing' },
+    { value: 'Patch Test', description: 'Delayed reaction testing' },
+    { value: 'Food Allergy Test', description: 'Comprehensive food allergy panel' },
+    { value: 'Environmental Allergy Test', description: 'Environmental allergen testing' },
+    { value: 'Drug Allergy Test', description: 'Medication allergy assessment' },
+    { value: 'Insect Venom Test', description: 'Insect sting allergy testing' },
+    { value: 'Comprehensive Panel', description: 'Full allergy assessment' }
   ];
 
   const priorityLevels = [
@@ -178,11 +176,33 @@ export const SimpleBookingSystem = () => {
         return;
       }
 
+      // Create booking data with only the core required fields that exist in the basic table
       const bookingData = {
-        ...formData,
+        patient_name: formData.patient_name,
+        patient_phone: formData.patient_phone || '',
+        appointment_date: formData.appointment_date,
+        appointment_time: formData.appointment_time,
+        test_type: formData.test_type,
         status: 'scheduled',
-        created_at: new Date().toISOString()
+        notes: formData.notes || ''
       };
+
+      // Only add optional fields if they have values and if the database supports them
+      if (formData.patient_email && formData.patient_email.trim()) {
+        try {
+          (bookingData as any).patient_email = formData.patient_email;
+        } catch (e) {
+          console.log('patient_email field not supported in database');
+        }
+      }
+      
+      if (formData.priority && formData.priority !== 'normal') {
+        try {
+          (bookingData as any).priority = formData.priority;
+        } catch (e) {
+          console.log('priority field not supported in database');
+        }
+      }
 
       const { data, error } = await supabase
         .from('simple_bookings')
@@ -192,7 +212,12 @@ export const SimpleBookingSystem = () => {
 
       if (error) {
         console.error('Error creating booking:', error);
-        toast.error('Failed to create booking: ' + error.message);
+        // Provide more helpful error message
+        if (error.message.includes('column') && error.message.includes('does not exist')) {
+          toast.error('Database needs to be updated. Please run the database migration script.');
+        } else {
+          toast.error('Failed to create booking: ' + error.message);
+        }
         return;
       }
 
@@ -264,7 +289,6 @@ export const SimpleBookingSystem = () => {
       appointment_time: '',
       test_type: '',
       priority: 'normal',
-      duration_minutes: 60,
       notes: ''
     });
     setShowForm(false);
@@ -280,7 +304,6 @@ export const SimpleBookingSystem = () => {
       appointment_time: booking.appointment_time,
       test_type: booking.test_type,
       priority: booking.priority || 'normal',
-      duration_minutes: booking.duration_minutes || 60,
       notes: booking.notes || ''
     });
     setEditingBooking(booking);
@@ -547,11 +570,9 @@ export const SimpleBookingSystem = () => {
                   <Select 
                     value={formData.test_type} 
                     onValueChange={(value) => {
-                      const selectedTest = testTypes.find(t => t.value === value);
                       setFormData(prev => ({ 
                         ...prev, 
-                        test_type: value,
-                        duration_minutes: selectedTest?.duration || 60
+                        test_type: value
                       }));
                     }}
                   >
@@ -594,19 +615,7 @@ export const SimpleBookingSystem = () => {
                     </Select>
                   </div>
                   
-                  <div className="space-y-2">
-                    <Label htmlFor="duration_minutes">Duration (minutes)</Label>
-                    <Input
-                      id="duration_minutes"
-                      type="number"
-                      value={formData.duration_minutes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, duration_minutes: parseInt(e.target.value) || 60 }))}
-                      min="15"
-                      max="240"
-                      step="15"
-                      className="border-gray-300 focus:border-blue-500"
-                    />
-                  </div>
+
                 </div>
               </div>
             </div>
@@ -757,7 +766,7 @@ export const SimpleBookingSystem = () => {
                         <Clock className="h-5 w-5 text-green-600" />
                         <div>
                           <p className="text-sm font-medium text-gray-900">Time</p>
-                          <p className="text-sm text-gray-600">{booking.appointment_time} ({booking.duration_minutes || 60} min)</p>
+                          <p className="text-sm text-gray-600">{booking.appointment_time}</p>
                         </div>
                       </div>
                       
@@ -797,3 +806,4 @@ export const SimpleBookingSystem = () => {
     </div>
   );
 };
+

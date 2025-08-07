@@ -10,9 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TestTube, User, Calendar, Save, Download, FileText } from 'lucide-react';
+import { TestTube, User, Calendar, Save, Download, FileText, Printer } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const enhancedTestSchema = z.object({
   patient_info: z.object({
@@ -46,6 +48,7 @@ interface EnhancedAllergyTestFormProps {
   patientName: string;
   onSuccess: () => void;
   onCancel: () => void;
+  existingTestData?: any; // For editing existing tests
 }
 
 // Predefined allergens data matching the JSON format
@@ -165,7 +168,9 @@ export const EnhancedAllergyTestForm = ({
     }));
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
+    try {
+      // Get form data
     const patientInfo = {
       name: document.querySelector<HTMLInputElement>('input[name="patient_info.name"]')?.value || '',
       lab_no: document.querySelector<HTMLInputElement>('input[name="patient_info.lab_no"]')?.value || '',
@@ -181,19 +186,144 @@ export const EnhancedAllergyTestForm = ({
       negative_control_saline: document.querySelector<HTMLInputElement>('input[name="controls.negative_control_saline"]')?.value || '',
     };
 
-    // Generate PDF content
-    const pdfContent = generatePDFContent(patientInfo, allergenResults, controls);
-    
-    // Create and download PDF
-    const blob = new Blob([pdfContent], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `allergy-test-${patientInfo.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    toast.success('Allergy test report exported successfully!');
+      const technician = document.querySelector<HTMLInputElement>('input[name="technician"]')?.value || '';
+      const notes = document.querySelector<HTMLTextAreaElement>('textarea[name="notes"]')?.value || '';
+
+      // Create PDF
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Header
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Enhanced Allergy Test Report', pageWidth / 2, 20, { align: 'center' });
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 30, { align: 'center' });
+      
+      // Patient Information
+      let yPos = 50;
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Patient Information', 20, yPos);
+      
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Name: ${patientInfo.name}`, 20, yPos);
+      pdf.text(`Lab No: ${patientInfo.lab_no}`, 120, yPos);
+      
+      yPos += 7;
+      pdf.text(`Age/Sex: ${patientInfo.age_sex}`, 20, yPos);
+      pdf.text(`MRD: ${patientInfo.mrd}`, 120, yPos);
+      
+      yPos += 7;
+      pdf.text(`Test Date: ${patientInfo.test_date}`, 20, yPos);
+      pdf.text(`Referred By: ${patientInfo.referred_by}`, 120, yPos);
+      
+      yPos += 7;
+      pdf.text(`Provisional Diagnosis: ${patientInfo.provisional_diagnosis}`, 20, yPos);
+      
+      // Controls
+      yPos += 15;
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Controls', 20, yPos);
+      
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Positive Control (Histamine): ${controls.positive_control_histamine} mm`, 20, yPos);
+      pdf.text(`Negative Control (Saline): ${controls.negative_control_saline} mm`, 120, yPos);
+      
+      // Allergen Results by Category
+      yPos += 15;
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Allergen Test Results', 20, yPos);
+      
+      yPos += 5;
+      
+      // Group allergens by category
+      const allergensByCategory = CATEGORIES.map(category => ({
+        category,
+        allergens: PREDEFINED_ALLERGENS.filter(a => a.category === category).map(allergen => ({
+          ...allergen,
+          result: allergenResults[allergen.sno] || { wheal_size_mm: '', test_result: '' }
+        }))
+      }));
+      
+      for (const categoryGroup of allergensByCategory) {
+        if (yPos > pageHeight - 40) {
+          pdf.addPage();
+          yPos = 20;
+        }
+        
+        yPos += 10;
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(categoryGroup.category, 20, yPos);
+        
+        yPos += 5;
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        
+        for (const allergen of categoryGroup.allergens) {
+          if (allergen.result.wheal_size_mm || allergen.result.test_result) {
+            yPos += 5;
+            if (yPos > pageHeight - 20) {
+              pdf.addPage();
+              yPos = 20;
+            }
+            
+            const resultColor = allergen.result.test_result === 'POSITIVE' ? [255, 0, 0] : 
+                               allergen.result.test_result === 'NEGATIVE' ? [0, 128, 0] : [0, 0, 0];
+            
+            pdf.text(`${allergen.sno}. ${allergen.name}`, 25, yPos);
+            pdf.text(`${allergen.result.wheal_size_mm} mm`, 120, yPos);
+            
+            pdf.setTextColor(resultColor[0], resultColor[1], resultColor[2]);
+            pdf.text(`${allergen.result.test_result || 'Not tested'}`, 150, yPos);
+            pdf.setTextColor(0, 0, 0);
+          }
+        }
+      }
+      
+      // Technician and Notes
+      if (yPos > pageHeight - 40) {
+        pdf.addPage();
+        yPos = 20;
+      }
+      
+      yPos += 15;
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Additional Information', 20, yPos);
+      
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Technician: ${technician}`, 20, yPos);
+      
+      if (notes) {
+        yPos += 7;
+        pdf.text('Notes:', 20, yPos);
+        yPos += 5;
+        const splitNotes = pdf.splitTextToSize(notes, pageWidth - 40);
+        pdf.text(splitNotes, 20, yPos);
+      }
+      
+      // Save PDF
+      const fileName = `allergy-test-${patientInfo.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      
+      toast.success('PDF report exported successfully!');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast.error('Failed to export PDF report');
+    }
   };
 
   const generatePDFContent = (patientInfo: any, results: any, controls: any) => {
@@ -284,6 +414,125 @@ export const EnhancedAllergyTestForm = ({
 </html>`;
   };
 
+  // Function to export saved test data to PDF
+  const exportSavedTestToPDF = async (testData: any) => {
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Header
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Enhanced Allergy Test Report', pageWidth / 2, 20, { align: 'center' });
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, 30, { align: 'center' });
+      
+      // Patient Information from saved data
+      let yPos = 50;
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Patient Information', 20, yPos);
+      
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      
+      const patientInfo = testData.patient_info || {};
+      pdf.text(`Name: ${patientInfo.name || 'N/A'}`, 20, yPos);
+      pdf.text(`Lab No: ${patientInfo.lab_no || 'N/A'}`, 120, yPos);
+      
+      yPos += 7;
+      pdf.text(`Age/Sex: ${patientInfo.age_sex || 'N/A'}`, 20, yPos);
+      pdf.text(`MRD: ${patientInfo.mrd || 'N/A'}`, 120, yPos);
+      
+      yPos += 7;
+      pdf.text(`Test Date: ${testData.test_date || 'N/A'}`, 20, yPos);
+      pdf.text(`Referred By: ${patientInfo.referred_by || 'N/A'}`, 120, yPos);
+      
+      yPos += 7;
+      pdf.text(`Provisional Diagnosis: ${patientInfo.provisional_diagnosis || 'N/A'}`, 20, yPos);
+      
+      // Allergen Results from saved data
+      yPos += 15;
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Allergen Test Results', 20, yPos);
+      
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      
+      const allergenResults = testData.allergen_results || {};
+      let resultCount = 0;
+      
+      for (const [allergenKey, result] of Object.entries(allergenResults)) {
+        if (result && result !== '0mm') {
+          yPos += 5;
+          if (yPos > pageHeight - 20) {
+            pdf.addPage();
+            yPos = 20;
+          }
+          
+          const allergenName = allergenKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+          const whealSize = result as string;
+          const numericSize = parseFloat(whealSize.replace('mm', ''));
+          const testResult = numericSize >= 3 ? 'POSITIVE' : 'NEGATIVE';
+          
+          const resultColor = testResult === 'POSITIVE' ? [255, 0, 0] : [0, 128, 0];
+          
+          pdf.text(`${allergenName}:`, 25, yPos);
+          pdf.text(`${whealSize}`, 120, yPos);
+          
+          pdf.setTextColor(resultColor[0], resultColor[1], resultColor[2]);
+          pdf.text(testResult, 150, yPos);
+          pdf.setTextColor(0, 0, 0);
+          
+          resultCount++;
+        }
+      }
+      
+      if (resultCount === 0) {
+        pdf.text('No test results recorded', 25, yPos);
+      }
+      
+      // Additional Information
+      if (yPos > pageHeight - 40) {
+        pdf.addPage();
+        yPos = 20;
+      }
+      
+      yPos += 15;
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Additional Information', 20, yPos);
+      
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Technician: ${testData.technician || 'N/A'}`, 20, yPos);
+      
+      if (testData.notes) {
+        yPos += 7;
+        pdf.text('Notes:', 20, yPos);
+        yPos += 5;
+        const splitNotes = pdf.splitTextToSize(testData.notes, pageWidth - 40);
+        pdf.text(splitNotes, 20, yPos);
+      }
+      
+      // Save PDF
+      const fileName = `saved-allergy-test-${patientInfo.name?.replace(/\s+/g, '-') || 'patient'}-${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
+      
+      toast.success('Saved test data exported to PDF successfully!');
+    } catch (error) {
+      console.error('Error exporting saved test PDF:', error);
+      toast.error('Failed to export saved test data to PDF');
+    }
+  };
+
   const onSubmit = async (data: EnhancedTestFormData) => {
     setLoading(true);
     try {
@@ -364,137 +613,184 @@ export const EnhancedAllergyTestForm = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
+    <div className="max-w-7xl mx-auto space-y-3">
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center space-x-2">
               <TestTube className="h-5 w-5" />
               <span>Enhanced Allergy Test Form</span>
             </CardTitle>
+            <div className="flex items-center space-x-2">
             <Badge variant="outline" className="text-xs">
               {PREDEFINED_ALLERGENS.length} Allergens
             </Badge>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={exportToPDF}
+                className="flex items-center space-x-1"
+              >
+                <Download className="h-4 w-4" />
+                <span>Export PDF</span>
+              </Button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <CardContent className="pt-0">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
             {/* Patient Information */}
+            <Card className="bg-blue-50/30 border-blue-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <User className="h-4 w-4" />
+                  <span>Patient Information</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="patient_name">Patient Name</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="patient_name" className="text-sm font-medium">Patient Name *</Label>
                 <Input
                   id="patient_name"
                   {...register('patient_info.name')}
-                  placeholder="Patient name"
+                      placeholder="Full name"
+                      className="h-9"
                 />
                 {errors.patient_info?.name && (
-                  <p className="text-sm text-destructive">{errors.patient_info.name.message}</p>
+                      <p className="text-xs text-destructive">{errors.patient_info.name.message}</p>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="lab_no">Lab Number</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="lab_no" className="text-sm font-medium">Lab Number *</Label>
                 <Input
                   id="lab_no"
                   {...register('patient_info.lab_no')}
-                  placeholder="Lab number"
+                      placeholder="Lab ID"
+                      className="h-9"
                 />
                 {errors.patient_info?.lab_no && (
-                  <p className="text-sm text-destructive">{errors.patient_info.lab_no.message}</p>
+                      <p className="text-xs text-destructive">{errors.patient_info.lab_no.message}</p>
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="age_sex">Age/Sex</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="age_sex" className="text-sm font-medium">Age/Sex</Label>
                 <Input
                   id="age_sex"
                   {...register('patient_info.age_sex')}
                   placeholder="e.g., 25/M"
+                      className="h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="provisional_diagnosis">Provisional Diagnosis</Label>
-                <Input
-                  id="provisional_diagnosis"
-                  {...register('patient_info.provisional_diagnosis')}
-                  placeholder="Provisional diagnosis"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="mrd">MRD</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="mrd" className="text-sm font-medium">MRD</Label>
                 <Input
                   id="mrd"
                   {...register('patient_info.mrd')}
-                  placeholder="MRD"
+                      placeholder="Medical record ID"
+                      className="h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                            <Label htmlFor="test_date">Date of Testing</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="test_date" className="text-sm font-medium">Test Date *</Label>
             <Input
               id="test_date"
               type="date"
               {...register('patient_info.test_date')}
+                      className="h-9"
             />
             {errors.patient_info?.test_date && (
-              <p className="text-sm text-destructive">{errors.patient_info.test_date.message}</p>
+                      <p className="text-xs text-destructive">{errors.patient_info.test_date.message}</p>
             )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="referred_by">Referred By</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="referred_by" className="text-sm font-medium">Referred By</Label>
                 <Input
                   id="referred_by"
                   {...register('patient_info.referred_by')}
                   placeholder="Referring physician"
+                      className="h-9"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="technician">Technician</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="technician" className="text-sm font-medium">Technician</Label>
                 <Input
                   id="technician"
                   {...register('technician')}
                   placeholder="Technician name"
+                      className="h-9"
+                    />
+                  </div>
+
+                  <div className="space-y-1 md:col-span-2 lg:col-span-1">
+                    <Label htmlFor="provisional_diagnosis" className="text-sm font-medium">Provisional Diagnosis</Label>
+                    <Input
+                      id="provisional_diagnosis"
+                      {...register('patient_info.provisional_diagnosis')}
+                      placeholder="Clinical diagnosis"
+                      className="h-9"
                 />
               </div>
             </div>
+              </CardContent>
+            </Card>
 
             {/* Controls */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Controls</CardTitle>
+            <Card className="bg-green-50/30 border-green-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Controls</span>
+                </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="positive_control">Positive Control (Histamine)</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="positive_control" className="text-sm font-medium">Positive Control (Histamine)</Label>
+                    <div className="relative">
                     <Input
                       id="positive_control"
                       {...register('controls.positive_control_histamine')}
-                      placeholder="Wheal size in mm"
+                        placeholder="Enter size"
+                        className="h-9 pr-8"
                     />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mm</span>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="negative_control">Negative Control (Saline)</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="negative_control" className="text-sm font-medium">Negative Control (Saline)</Label>
+                    <div className="relative">
                     <Input
                       id="negative_control"
                       {...register('controls.negative_control_saline')}
-                      placeholder="Wheal size in mm"
+                        placeholder="Enter size"
+                        className="h-9 pr-8"
                     />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mm</span>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Allergens */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Allergen Test Results</CardTitle>
+            <Card className="bg-orange-50/30 border-orange-200">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <TestTube className="h-4 w-4" />
+                    <span>Allergen Test Results</span>
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {getFilteredAllergens().length} allergens
+                    </Badge>
+                  </CardTitle>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger className="w-48">
                       <SelectValue placeholder="Filter by category" />
@@ -510,17 +806,17 @@ export const EnhancedAllergyTestForm = ({
                   </Select>
                 </div>
               </CardHeader>
-                            <CardContent>
-                {/* Compact Table Layout */}
-                <div className="max-h-80 overflow-y-auto border rounded-lg">
+              <CardContent className="pt-0">
+                {/* Enhanced Table Layout */}
+                <div className="max-h-96 overflow-y-auto border rounded-lg shadow-inner">
                   <table className="w-full text-sm">
-                    <thead className="bg-muted/50 sticky top-0">
+                    <thead className="bg-gradient-to-r from-orange-100 to-orange-50 sticky top-0 z-10">
                       <tr>
-                        <th className="p-2 text-left">S.No</th>
-                        <th className="p-2 text-left">Category</th>
-                        <th className="p-2 text-left">Allergen</th>
-                        <th className="p-2 text-left">Wheal Size (mm)</th>
-                        <th className="p-2 text-left">Result</th>
+                        <th className="p-3 text-left font-semibold">S.No</th>
+                        <th className="p-3 text-left font-semibold">Category</th>
+                        <th className="p-3 text-left font-semibold">Allergen</th>
+                        <th className="p-3 text-left font-semibold">Wheal Size</th>
+                        <th className="p-3 text-left font-semibold">Result</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -528,27 +824,37 @@ export const EnhancedAllergyTestForm = ({
                         const result = allergenResults[allergen.sno] || { wheal_size_mm: '', test_result: '' };
                         
                         return (
-                          <tr key={allergen.sno} className="border-b hover:bg-muted/30">
-                            <td className="p-2">
-                              <Badge variant="outline" className="text-xs">
+                          <tr key={allergen.sno} className="border-b hover:bg-orange-50/50 transition-colors">
+                            <td className="p-3">
+                              <Badge variant="outline" className="text-xs font-medium">
                                 {allergen.sno}
                               </Badge>
                             </td>
-                            <td className="p-2">
-                              <Badge variant="secondary" className="text-xs">
+                            <td className="p-3">
+                              <Badge 
+                                variant="secondary" 
+                                className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-200"
+                              >
                                 {allergen.category}
                               </Badge>
                             </td>
-                            <td className="p-2 font-medium">{allergen.name}</td>
-                            <td className="p-2">
+                            <td className="p-3 font-medium text-gray-900">{allergen.name}</td>
+                            <td className="p-3">
+                              <div className="relative w-20">
                               <Input
                                 value={result.wheal_size_mm}
                                 onChange={(e) => handleAllergenResultChange(allergen.sno, 'wheal_size_mm', e.target.value)}
-                                placeholder="mm"
-                                className="w-16 h-8 text-center"
-                              />
+                                  placeholder="0"
+                                  className="h-8 text-center pr-6 border-2 focus:border-orange-300"
+                                  type="number"
+                                  min="0"
+                                  max="30"
+                                  step="0.1"
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">mm</span>
+                              </div>
                             </td>
-                            <td className="p-2">
+                            <td className="p-3">
                               <Select
                                 value={result.test_result || 'none'}
                                 onValueChange={(value) => handleAllergenResultChange(allergen.sno, 'test_result', value)}
@@ -574,27 +880,42 @@ export const EnhancedAllergyTestForm = ({
             </Card>
 
             {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
+            <Card className="bg-gray-50/30 border-gray-200">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center space-x-2">
+                  <FileText className="h-4 w-4" />
+                  <span>Additional Notes</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
               <Textarea
                 id="notes"
                 {...register('notes')}
-                placeholder="Additional notes or observations..."
+                  placeholder="Enter any additional observations, reactions, or special notes about this test..."
                 rows={3}
+                  className="resize-none"
               />
-            </div>
+              </CardContent>
+            </Card>
 
             {/* Submit Buttons */}
-            <div className="flex space-x-2 pt-4">
-              <Button type="submit" disabled={loading} className="flex-1">
-                <Save className="h-4 w-4 mr-2" />
-                {loading ? 'Saving...' : 'Save Test'}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button 
+                type="submit" 
+                disabled={loading} 
+                className="flex-1 h-11 text-base font-medium"
+                size="lg"
+              >
+                <Save className="h-5 w-5 mr-2" />
+                {loading ? 'Saving Test...' : 'Save Allergy Test'}
               </Button>
-              <Button type="button" onClick={exportToPDF} variant="secondary" className="flex-1">
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </Button>
-              <Button type="button" variant="outline" onClick={onCancel} className="flex-1">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={onCancel} 
+                className="flex-1 h-11 text-base"
+                size="lg"
+              >
                 Cancel
               </Button>
             </div>

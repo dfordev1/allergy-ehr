@@ -13,11 +13,17 @@ import { BookingPage } from "./pages/BookingPage";
 import { SimpleBooking } from "./pages/SimpleBooking";
 import { Analytics } from "./pages/Analytics";
 import { Settings } from "./pages/Settings";
+import { AllergyPracticeDashboard } from "./pages/AllergyPracticeDashboard";
+import { SkinTestModule } from "./pages/modules/SkinTestModule";
+import { CustomAllergensModule } from "./pages/modules/CustomAllergensModule";
+import { PatientHandoutsModule } from "./pages/modules/PatientHandoutsModule";
+import { ContactlessCheckinModule } from "./pages/modules/ContactlessCheckinModule";
 import { 
   CriticalErrorBoundary, 
   PageErrorBoundary, 
   AsyncErrorBoundary 
 } from "./components/errors/ErrorBoundary";
+import { ResilientErrorBoundary } from "./components/errors/ResilientErrorBoundary";
 
 // Configure React Query with optimal settings for medical application
 const queryClient = new QueryClient({
@@ -27,7 +33,8 @@ const queryClient = new QueryClient({
       gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
       retry: (failureCount, error: unknown) => {
         // Don't retry on 4xx errors (client errors)
-        if ((error as any)?.status >= 400 && (error as any)?.status < 500) {
+        const apiError = error as { status?: number };
+        if (apiError?.status && apiError.status >= 400 && apiError.status < 500) {
           return false;
         }
         // Retry up to 3 times for other errors
@@ -120,16 +127,41 @@ const AppContent = () => {
               <Analytics />
             </PageErrorBoundary>
           } />
-          <Route path="/settings" element={
-            <PageErrorBoundary pageName="Settings">
-              <Settings />
-            </PageErrorBoundary>
-          } />
-          <Route path="*" element={
-            <PageErrorBoundary pageName="Not Found">
-              <Dashboard />
-            </PageErrorBoundary>
-          } />
+                          <Route path="/settings" element={
+                  <PageErrorBoundary pageName="Settings">
+                    <Settings />
+                  </PageErrorBoundary>
+                } />
+                <Route path="/practice" element={
+                  <PageErrorBoundary pageName="Allergy Practice">
+                    <AllergyPracticeDashboard />
+                  </PageErrorBoundary>
+                } />
+                <Route path="/practice/skin-tests" element={
+                  <PageErrorBoundary pageName="Skin Test Module">
+                    <SkinTestModule />
+                  </PageErrorBoundary>
+                } />
+                <Route path="/practice/custom-allergens" element={
+                  <PageErrorBoundary pageName="Custom Allergens Module">
+                    <CustomAllergensModule />
+                  </PageErrorBoundary>
+                } />
+                <Route path="/practice/handouts" element={
+                  <PageErrorBoundary pageName="Patient Handouts Module">
+                    <PatientHandoutsModule />
+                  </PageErrorBoundary>
+                } />
+                <Route path="/practice/checkin" element={
+                  <PageErrorBoundary pageName="Contactless Checkin Module">
+                    <ContactlessCheckinModule />
+                  </PageErrorBoundary>
+                } />
+                <Route path="*" element={
+                  <PageErrorBoundary pageName="Not Found">
+                    <Dashboard />
+                  </PageErrorBoundary>
+                } />
         </Routes>
       </RBACProvider>
     </AsyncErrorBoundary>

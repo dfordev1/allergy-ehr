@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useRBAC, RESOURCES, PERMISSIONS } from '@/hooks/useRBAC';
-import { LogOut, User, Calendar, Home, BarChart3, Settings, Menu, X } from 'lucide-react';
+import { LogOut, User, Calendar, Home, BarChart3, Settings, Menu, X, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
@@ -26,6 +26,7 @@ export const AppHeader = () => {
 
   const navigationItems = [
     { path: '/', label: 'Dashboard', icon: Home },
+    { path: '/practice', label: 'Practice Management', icon: Building2, featured: true },
     { path: '/bookings', label: 'Bookings', icon: Calendar },
     ...(hasPermission(RESOURCES.ANALYTICS, PERMISSIONS.ANALYTICS.READ) 
       ? [{ path: '/analytics', label: 'Analytics', icon: BarChart3 }] 
@@ -52,16 +53,17 @@ export const AppHeader = () => {
           </div>
           
           <nav className="flex items-center space-x-2">
-            {navigationItems.map(({ path, label, icon: Icon }) => (
+            {navigationItems.map(({ path, label, icon: Icon, featured }) => (
               <Button
                 key={path}
                 variant={location.pathname === path ? 'default' : 'ghost'}
                 size="sm"
                 onClick={() => navigate(path)}
-                className="hidden sm:inline-flex"
+                className={`hidden sm:inline-flex ${featured ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700' : ''}`}
               >
                 <Icon className="h-4 w-4 mr-1" />
                 {label}
+                {featured && <Badge variant="secondary" className="ml-1 text-xs bg-white/20 text-white border-0">New</Badge>}
               </Button>
             ))}
           </nav>

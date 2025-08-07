@@ -5,21 +5,18 @@
 ALTER TABLE public.simple_bookings 
 ADD COLUMN IF NOT EXISTS patient_email TEXT,
 ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
-ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 60,
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
 
 -- Create indexes for new fields
 CREATE INDEX IF NOT EXISTS idx_simple_bookings_priority ON public.simple_bookings(priority);
 CREATE INDEX IF NOT EXISTS idx_simple_bookings_email ON public.simple_bookings(patient_email);
-CREATE INDEX IF NOT EXISTS idx_simple_bookings_duration ON public.simple_bookings(duration_minutes);
 
 -- Update existing records to have default values for new fields
 UPDATE public.simple_bookings 
 SET 
   priority = 'normal',
-  duration_minutes = 60,
   updated_at = NOW()
-WHERE priority IS NULL OR duration_minutes IS NULL OR updated_at IS NULL;
+WHERE priority IS NULL OR updated_at IS NULL;
 
 -- Create function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_simple_bookings_updated_at()
@@ -51,7 +48,6 @@ BEGIN
         test_type TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
         priority TEXT DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
-        duration_minutes INTEGER DEFAULT 60,
         notes TEXT,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -63,7 +59,6 @@ BEGIN
     CREATE INDEX IF NOT EXISTS idx_simple_bookings_patient ON public.simple_bookings(patient_name);
     CREATE INDEX IF NOT EXISTS idx_simple_bookings_priority ON public.simple_bookings(priority);
     CREATE INDEX IF NOT EXISTS idx_simple_bookings_email ON public.simple_bookings(patient_email);
-    CREATE INDEX IF NOT EXISTS idx_simple_bookings_duration ON public.simple_bookings(duration_minutes);
 
     -- Enable RLS
     ALTER TABLE public.simple_bookings ENABLE ROW LEVEL SECURITY;
@@ -94,14 +89,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Insert enhanced sample data
-INSERT INTO public.simple_bookings (patient_name, patient_phone, patient_email, appointment_date, appointment_time, test_type, priority, duration_minutes, notes) 
-SELECT 'Alice Johnson', '555-0123', 'alice.johnson@email.com', CURRENT_DATE + INTERVAL '1 day', '09:30', 'Comprehensive Panel', 'high', 120, 'New patient - comprehensive allergy assessment needed'
+INSERT INTO public.simple_bookings (patient_name, patient_phone, patient_email, appointment_date, appointment_time, test_type, priority, notes) 
+SELECT 'Alice Johnson', '555-0123', 'alice.johnson@email.com', CURRENT_DATE + INTERVAL '1 day', '09:30', 'Comprehensive Panel', 'high', 'New patient - comprehensive allergy assessment needed'
 WHERE NOT EXISTS (SELECT 1 FROM public.simple_bookings WHERE patient_name = 'Alice Johnson');
 
-INSERT INTO public.simple_bookings (patient_name, patient_phone, patient_email, appointment_date, appointment_time, test_type, priority, duration_minutes, notes) 
-SELECT 'Michael Chen', '555-0456', 'michael.chen@email.com', CURRENT_DATE + INTERVAL '2 days', '14:15', 'Food Allergy Test', 'urgent', 90, 'Recent severe reaction - priority testing required'
+INSERT INTO public.simple_bookings (patient_name, patient_phone, patient_email, appointment_date, appointment_time, test_type, priority, notes) 
+SELECT 'Michael Chen', '555-0456', 'michael.chen@email.com', CURRENT_DATE + INTERVAL '2 days', '14:15', 'Food Allergy Test', 'urgent', 'Recent severe reaction - priority testing required'
 WHERE NOT EXISTS (SELECT 1 FROM public.simple_bookings WHERE patient_name = 'Michael Chen');
 
-INSERT INTO public.simple_bookings (patient_name, patient_phone, patient_email, appointment_date, appointment_time, test_type, priority, duration_minutes, notes) 
-SELECT 'Sarah Williams', '555-0789', 'sarah.williams@email.com', CURRENT_DATE + INTERVAL '3 days', '11:00', 'Environmental Allergy Test', 'normal', 45, 'Seasonal allergy follow-up'
+INSERT INTO public.simple_bookings (patient_name, patient_phone, patient_email, appointment_date, appointment_time, test_type, priority, notes) 
+SELECT 'Sarah Williams', '555-0789', 'sarah.williams@email.com', CURRENT_DATE + INTERVAL '3 days', '11:00', 'Environmental Allergy Test', 'normal', 'Seasonal allergy follow-up'
 WHERE NOT EXISTS (SELECT 1 FROM public.simple_bookings WHERE patient_name = 'Sarah Williams');
