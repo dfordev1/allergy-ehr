@@ -1,3 +1,25 @@
+## Environment Variables
+
+Create a `.env` file (not committed) using the template below and restart the dev server:
+
+```
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+See `.env.example` for a reference.
+
+## Scripts
+
+- `npm run dev` – start local dev
+- `npm run build` – production build
+- `npm run preview` – preview build
+- `npm run lint` – run lint
+
+## Database
+
+Run migrations in `supabase/migrations/` to provision roles, user profiles, patients, tests, enhanced tests, and bookings. `04_auto_profile_and_rls.sql` auto-creates a user profile on signup and tightens RLS.
+
 # Welcome to your Lovable project
 
 ## Project info
